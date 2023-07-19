@@ -12839,6 +12839,14 @@ function hasProperty(prop) {
     };
 }
 
+function hasPropertyStartsWith(prop) {
+    return node => {
+        return Object
+            .keys(node.properties || {})
+            .some(s => s.startsWith(prop));
+    };
+}
+
 /*
  * Merge nodes by id.
  */
@@ -12860,6 +12868,22 @@ function evalWith(code, context) {
 
 function findFile(relativePath, relative) {
     return path$1.join(relative.cwd, relativePath);
+}
+
+function attr() {
+    const data = this.data();
+
+    return tree => {
+        visit(tree, hasPropertyStartsWith("re:"), node => {
+            Object.keys(node.properties).forEach(reprop => {
+                if (!reprop.startsWith("re:")) return;
+                const newprop = reprop.substring(3, reprop.length);
+                const value = evalWith(node.properties[reprop], data);
+                node.properties[newprop] = value;
+                delete node.properties[reprop];
+            });
+        });
+    };
 }
 
 function cond() {
@@ -14604,6 +14628,7 @@ function include() {
             const part = readSync(findFile(path, doc));
             const res = this.parse(part);
             node.children = res.children;
+            delete node.properties["re:include"];
         });
     };
 }
@@ -16847,6 +16872,8 @@ function layout() {
         visit(tree, hasProperty("re:layout"), node => {
             const path = node.properties["re:layout"];
             const layout = readSync(findFile(path, doc));
+            // delete before merge
+            delete node.properties["re:layout"];
             const proc = this().use(merge, node);
             const res = proc.runSync(proc.parse(layout));
             tree.children = res.children;
@@ -17116,6 +17143,7 @@ function replace() {
             const part = readSync(findFile(path, doc));
             const res = this.parse(part);
             parent.children[parent.children.indexOf(node)] = res;
+            delete node.properties["re:replace"];
         });
     };
 }
@@ -17152,7 +17180,8 @@ var processors = {
         layout,
         loop,
         replace,
-        text
+        text,
+        attr
     ]
 };
 
